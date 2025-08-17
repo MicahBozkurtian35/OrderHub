@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8081
+  port: 5101
 
 spring:
   datasource:
@@ -10,7 +10,7 @@ spring:
     hibernate:
       ddl-auto: update
     properties:
-      hibernate.jdbc.time_zone: UTC
+      "[hibernate.jdbc.time_zone]": UTC
   rabbitmq:
     host: localhost
     port: 5672
