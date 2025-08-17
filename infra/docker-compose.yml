@@ -1,24 +1,42 @@
-# NOTE: No 'version:' key (Compose V2 recommends omitting it)
-name: orderhub
+version: "3.9"
 
 services:
+  # ---------- PostgreSQL ----------
   postgres:
     image: postgres:16
     container_name: infra-postgres-1
     environment:
-      POSTGRES_DB: ordersdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orderhub
+      POSTGRES_USER: orderhub
+      POSTGRES_PASSWORD: orderhub
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ordersdb"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U orderhub -d orderhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
+  # ---------- RabbitMQ (with management UI) ----------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: infra-rabbitmq-1
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Web UI
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------- MongoDB ----------
   mongo:
     image: mongo:7
     container_name: infra-mongo-1
@@ -27,62 +45,14 @@ services:
     volumes:
       - mongodata:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
+      # 'mongosh' is included in the official mongo image
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
       timeout: 5s
-      retries: 10
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: infra-rabbitmq-1
-    ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # Management UI
-    healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  orders:
-    build:
-      context: ../services/orders-kotlin-app
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ordersdb
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SERVER_PORT: 8081
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "8081:8081"
-
-  billing:
-    build:
-      context: ../services/BillingService
-    environment:
-      ASPNETCORE_URLS: http://0.0.0.0:8082
-      Mongo__ConnectionString: mongodb://mongo:27017
-      Mongo__Database: billingdb
-      Rabbit__Host: rabbitmq
-      Rabbit__User: guest
-      Rabbit__Pass: guest
-      Rabbit__Exchange: order.events
-      Rabbit__RoutingKey: order.created
-      Rabbit__Queue: billing.invoice.create
-    depends_on:
-      mongo:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "8082:8082"
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  rabbitmqdata:
   mongodata:

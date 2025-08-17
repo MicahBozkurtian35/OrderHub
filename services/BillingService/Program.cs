@@ -23,15 +23,22 @@ builder.Services.AddHostedService<OrderConsumer>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ---- Health checks ----
+// Minimal “is the process up” probe at /health
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 app.UseCors();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// ---------- Routes ----------
+// ---------- Health endpoints ----------
 
-// Health
+// Liveness/readiness: returns 200 when app is running
+app.MapHealthChecks("/health");
+
+// Deeper dependency check: verifies Mongo can be contacted
 app.MapGet("/api/health", async (InvoiceRepository repo) =>
 {
     try
@@ -48,6 +55,8 @@ app.MapGet("/api/health", async (InvoiceRepository repo) =>
         );
     }
 });
+
+// ---------- API Routes ----------
 
 // List invoices (newest first), with optional ?limit (default 50)
 app.MapGet("/api/invoices", async ([FromQuery] int? limit, InvoiceRepository repo) =>
@@ -92,5 +101,5 @@ app.MapDelete("/api/invoices", async ([FromQuery] bool all, [FromQuery] int? old
     return Results.BadRequest(new { message = "Specify ?all=true or ?olderThanMinutes=N" });
 });
 
-
-app.Run("http://localhost:8082");
+// IMPORTANT: let config/launchSettings pick the port (5102). No hard-coded URL here.
+app.Run();
