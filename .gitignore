@@ -1,17 +1,26 @@
 # Node / React
-node_modules/
-dist/
-build/
+orderhub-ui/node_modules/
+orderhub-ui/dist/
+orderhub-ui/build/
 
-# Dotnet
-bin/
-obj/
+# .NET
+services/**/bin/
+services/**/obj/
 
-# Logs
+# Gradle (Kotlin)
+services/**/.gradle/
+services/**/build/
+
+# Docker
+**/.docker/
+
+# Env & logs
 *.log
+*.env
+.env*
 
-# Environment
-.env
-
-# VSCode
+# Editor/OS
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
