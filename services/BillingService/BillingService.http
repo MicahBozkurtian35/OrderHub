@@ -1,0 +1,6 @@
+@BillingService_HostAddress = http://localhost:5101
+
+GET {{BillingService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

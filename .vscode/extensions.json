@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csharp",
+    "vscjava.vscode-java-pack",
+    "vscjava.vscode-gradle",
+    "vscjava.vscode-spring-boot",
+    "fwcd.kotlin",
+    "ms-azuretools.vscode-docker",
+    "mongodb.mongodb-vscode",
+    "ms-ossdata.vscode-postgresql",
+    "humao.rest-client"
+  ]
+}

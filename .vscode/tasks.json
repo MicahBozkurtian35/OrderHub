@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "infra:up",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/infra"
+      },
+      "command": "docker compose up -d",
+      "problemMatcher": []
+    },
+    {
+      "label": "infra:down",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/infra"
+      },
+      "command": "docker compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "build-billing",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/services/BillingService"
+      },
+      "command": "dotnet build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "run-billing (watch)",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/services/BillingService"
+      },
+      "command": "dotnet watch run",
+      "problemMatcher": []
+    },
+    {
+      "label": "run-orders (bootRun)",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}/services/orders-kotlin-app"
+      },
+      "command": "cmd /c gradlew.bat bootRun",
+      "problemMatcher": []
+    }
+  ]
+}

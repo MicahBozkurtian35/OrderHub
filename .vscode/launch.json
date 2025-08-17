@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach Orders (JVM 5005)",
+      "type": "java",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005
+    },
+    {
+      "name": "Debug Billing (.NET)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-billing",
+      "program": "${workspaceFolder}/services/BillingService/bin/Debug/net8.0/BillingService.dll",
+      "cwd": "${workspaceFolder}/services/BillingService",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}

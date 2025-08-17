@@ -1,0 +1,17 @@
+### Health
+GET http://localhost:8081/actuator/health
+
+### Create order
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+
+{
+  "customerId": "11111111-1111-1111-1111-111111111111",
+  "items": [{ "sku": "ABC-1", "qty": 2, "unitPrice": 49.75 }]
+}
+
+### List orders
+GET http://localhost:8081/api/orders
+
+### List invoices
+GET http://localhost:8082/api/invoices

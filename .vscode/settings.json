@@ -1,0 +1,15 @@
+{
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "C:\\\\Program Files\\\\Eclipse Adoptium\\\\jdk-21"
+    }
+  ],
+  "files.exclude": {
+    "**/.gradle": true,
+    "**/build": true,
+    "**/bin": true,
+    "**/obj": true
+  }
+}
