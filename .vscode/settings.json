@@ -11,5 +11,6 @@
     "**/build": true,
     "**/bin": true,
     "**/obj": true
-  }
+  },
+  "java.compile.nullAnalysis.mode": "automatic"
 }

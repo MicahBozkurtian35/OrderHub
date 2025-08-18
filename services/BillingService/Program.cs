@@ -1,105 +1,104 @@
-﻿using BillingService.Data;
-using BillingService.Messaging;
-using BillingService;
-using Microsoft.AspNetCore.Mvc;
-using BillingService.Models;
+﻿using Microsoft.AspNetCore.Routing;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---- CORS for the React dev server ----
-builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins("http://localhost:5173")
-     .AllowAnyHeader()
-     .AllowAnyMethod()
-));
-
-// ---- Options / DI ----
-builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("Mongo"));
-builder.Services.Configure<RabbitSettings>(builder.Configuration.GetSection("Rabbit"));
-builder.Services.AddSingleton<InvoiceRepository>();
-builder.Services.AddHostedService<OrderConsumer>();
-
-// ---- Swagger ----
+// Core services
+builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .WithOrigins(
+        "http://localhost:5173","http://127.0.0.1:5173",
+        "http://localhost:3000","http://127.0.0.1:3000")));
 
-// ---- Health checks ----
-// Minimal “is the process up” probe at /health
-builder.Services.AddHealthChecks();
+// ✅ Controllers (attribute routing: /api/..., /invoices/...)
+builder.Services.AddControllers();
+
+// ✅ Dev-friendly in-memory invoice store via DI (swap later for your real repo)
+builder.Services.AddSingleton<IInvoiceStore, InMemoryInvoiceStore>();
 
 var app = builder.Build();
 
 app.UseCors();
-app.UseSwagger();
-app.UseSwaggerUI();
 
-// ---------- Health endpoints ----------
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
-// Liveness/readiness: returns 200 when app is running
+// Health + root
 app.MapHealthChecks("/health");
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// Deeper dependency check: verifies Mongo can be contacted
-app.MapGet("/api/health", async (InvoiceRepository repo) =>
+// ✅ Map controllers
+app.MapControllers();
+
+// Route inspector (helps verify what’s mapped)
+if (app.Environment.IsDevelopment())
 {
-    try
+    app.MapGet("/_routes", (IEnumerable<EndpointDataSource> sources) =>
     {
-        await repo.CountAsync();
-        return Results.Ok(new { status = "ok" });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(
-            title: "mongo unreachable",
-            detail: ex.Message,
-            statusCode: 503
-        );
-    }
-});
+        var routes = sources.SelectMany(s => s.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText)
+            .Distinct()
+            .OrderBy(x => x);
+        return Results.Ok(routes);
+    });
+}
 
-// ---------- API Routes ----------
-
-// List invoices (newest first), with optional ?limit (default 50)
-app.MapGet("/api/invoices", async ([FromQuery] int? limit, InvoiceRepository repo) =>
-{
-    var n = (limit is > 0) ? limit!.Value : 50;
-    var rows = await repo.ListAsync(n);
-    return Results.Ok(rows);
-});
-
-// Recent invoices since ?minutes (default 30)
-app.MapGet("/api/invoices/recent", async ([FromQuery] int? minutes, InvoiceRepository repo) =>
-{
-    var m = (minutes is > 0) ? minutes!.Value : 30;
-    var since = DateTime.UtcNow.AddMinutes(-m);
-    var rows = await repo.ListSinceAsync(since, 200);
-    return Results.Ok(rows);
-});
-
-// Delete one invoice by orderId
-app.MapDelete("/api/invoices/{orderId}", async (string orderId, InvoiceRepository repo) =>
-{
-    var deleted = await repo.DeleteByOrderAsync(orderId);
-    return deleted > 0 ? Results.NoContent() : Results.NotFound();
-});
-
-// Bulk delete: either all=true OR olderThanMinutes=N
-app.MapDelete("/api/invoices", async ([FromQuery] bool all, [FromQuery] int? olderThanMinutes, InvoiceRepository repo) =>
-{
-    if (all)
-    {
-        var n = await repo.DeleteAllAsync();
-        return Results.Ok(new { deleted = n });
-    }
-
-    if (olderThanMinutes is int m && m > 0)
-    {
-        var cutoff = DateTime.UtcNow.AddMinutes(-m);
-        var n = await repo.DeleteOlderThanAsync(cutoff);
-        return Results.Ok(new { deleted = n });
-    }
-
-    return Results.BadRequest(new { message = "Specify ?all=true or ?olderThanMinutes=N" });
-});
-
-// IMPORTANT: let config/launchSettings pick the port (5102). No hard-coded URL here.
 app.Run();
+
+// ===== Contracts =====
+public record CreateInvoiceDto(string OrderId, decimal Amount);
+public record InvoiceDto(Guid Id, string OrderId, decimal Amount, string Status, DateTime CreatedAt);
+
+// ===== Minimal store abstraction =====
+public interface IInvoiceStore
+{
+    IEnumerable<InvoiceDto> List(int take = 100);
+    InvoiceDto? Get(Guid id);
+    InvoiceDto Add(CreateInvoiceDto req);
+    InvoiceDto? MarkPaid(Guid id);
+}
+
+// ===== In-memory impl (replace later with your repository/DB) =====
+public class InMemoryInvoiceStore : IInvoiceStore
+{
+    private readonly Dictionary<Guid, InvoiceDto> _data = new();
+    private readonly object _lock = new();
+
+    public IEnumerable<InvoiceDto> List(int take = 100)
+    {
+        lock (_lock) { return _data.Values.OrderByDescending(x => x.CreatedAt).Take(take).ToArray(); }
+    }
+
+    public InvoiceDto? Get(Guid id)
+    {
+        lock (_lock) { return _data.TryGetValue(id, out var v) ? v : null; }
+    }
+
+    public InvoiceDto Add(CreateInvoiceDto req)
+    {
+        lock (_lock)
+        {
+            var inv = new InvoiceDto(Guid.NewGuid(), req.OrderId, req.Amount, "unpaid", DateTime.UtcNow);
+            _data[inv.Id] = inv;
+            return inv;
+        }
+    }
+
+    public InvoiceDto? MarkPaid(Guid id)
+    {
+        lock (_lock)
+        {
+            if (!_data.TryGetValue(id, out var inv)) return null;
+            var updated = inv with { Status = "paid" };
+            _data[id] = updated;
+            return updated;
+        }
+    }
+}
